@@ -24,6 +24,10 @@ DISCORD_TOKEN = os.getenv("DISCORD_TOKEN") or sys.exit("Error: variable DISCORD_
 # ID_MODEL = os.getenv("ID_MODEL") or sys.exit("Error: variable ID_MODEL is missing.")
 
 @bot.before_invoke
+async def before_any_command(ctx):
+    await ctx.channel.trigger_typing()
+
+@bot.before_invoke
 async def check_allowed(ctx):
     if not is_allowed(ctx, ctx.command.name):
         raise commands.CheckFailure()
