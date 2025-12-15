@@ -1,0 +1,12 @@
+{
+    "1449773237595537601": {
+        "description": "test",
+        "allowed_commands": ["hello", "help"],
+        "joined": "2025-12-14"
+    },
+    "123": {
+        "description": "placeholder",
+        "allowed_commands": ["ping"],
+        "joined": null
+    }
+}
