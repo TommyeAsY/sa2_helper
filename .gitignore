@@ -9,3 +9,4 @@ __pycache__/
 
 utils/__pycache__/
 utils/sorter.py
+utils/model_searcher.py
