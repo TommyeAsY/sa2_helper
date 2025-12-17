@@ -52,7 +52,7 @@ async def on_ready() -> None:
         for member in guild.members:
             roles = [role.name for role in member.roles if role.name != "@everyone"]
             owner = member == guild.owner
-            admin = member == member.guild_permissions.administrator
+            admin = member.guild_permissions.administrator
             if admin:
                 roles.append("ADMIN")
             if owner:
