@@ -29,10 +29,12 @@ class CustomHelp(commands.HelpCommand):
 
         Args:
             mapping (Mapping[Optional[commands.Cog], List[commands.Command]]): 
-                A dictionary where the key is a cog (or None) and the value is a list of commands.
+                A dictionary where the key is a cog (or None) and the value is a list of
+                commands.
 
         Returns:
-            None (NoneType): Sends an embed message to the channel, does not return a value.
+            None (NoneType): Sends an embed message to the channel, does not return a
+            value.
         """
         ctx = self.context
         guild_id = str(ctx.guild.id)
@@ -60,7 +62,8 @@ class CustomHelp(commands.HelpCommand):
             command (commands.Command): The command for which help should be displayed.
 
         Returns:
-            None (NoneType): Sends an embed or an error message to the channel, does not return a value.
+            None (NoneType): Sends an embed or an error message to the channel, does not
+            return a value.
         """
         ctx = self.context
         if is_allowed(ctx, command.name):

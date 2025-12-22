@@ -6,8 +6,11 @@ __pycache__/
 *.pyd
 
 .env
+test.py
 
 utils/__pycache__/
 utils/sorter.py
 utils/model_searcher.py
 logs/
+rag/knowledge_base/
+test/
