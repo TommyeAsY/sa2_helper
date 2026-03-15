@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from typing import Mapping, List, Optional
+from typing import Mapping, List, Optional # kill this later
 
 from .permissions import config, is_allowed
 
@@ -25,16 +25,17 @@ class CustomHelp(commands.HelpCommand):
         mapping: Mapping[Optional[commands.Cog], List[commands.Command]]
     ) -> None:
         """
-        Build and send an embed listing all available commands for the current server.
+        Build and send an embed listing all available commands for the current
+        server.
 
         Args:
             mapping (Mapping[Optional[commands.Cog], List[commands.Command]]): 
-                A dictionary where the key is a cog (or None) and the value is a list of
-                commands.
+                A dictionary where the key is a cog (or None) and the value is
+                a list of commands.
 
         Returns:
-            None (NoneType): Sends an embed message to the channel, does not return a
-            value.
+            None (NoneType): Sends an embed message to the channel, does not
+            return a value.
         """
         ctx = self.context
         guild_id = str(ctx.guild.id)
@@ -59,11 +60,12 @@ class CustomHelp(commands.HelpCommand):
         Build and send an embed with information about a specific command.
 
         Args:
-            command (commands.Command): The command for which help should be displayed.
+            command (commands.Command): The command for which help should be
+            displayed.
 
         Returns:
-            None (NoneType): Sends an embed or an error message to the channel, does not
-            return a value.
+            None (NoneType): Sends an embed or an error message to the channel,
+            does not return a value.
         """
         ctx = self.context
         if is_allowed(ctx, command.name):

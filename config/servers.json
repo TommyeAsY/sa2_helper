@@ -1,0 +1,20 @@
+{
+    "1449773237595537601": {
+        "description": "test",
+        "allowed_commands": ["hello", "help", "model", "models", "switch", "refresh_models"],
+        "allowed_channels": "all",
+        "joined": "2025-12-14"
+    },
+    "123": {
+        "description": "placeholder",
+        "allowed_commands": ["ping"],
+        "allowed_channels": "all",
+        "joined": null
+    },
+    "424034857702785029": {
+        "description": "SA2 TAS Server",
+        "allowed_commands": ["hello", "help", "model", "models", "switch", "refresh_models"],
+        "allowed_channels": [1482432456811610112],
+        "joined": null
+    }
+}

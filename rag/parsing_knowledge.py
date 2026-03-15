@@ -1,8 +1,10 @@
-import os
 import json
-from tqdm import tqdm
+import os
 import sqlite3
+
 import discord
+from tqdm import tqdm
+
 
 DATA_DIR = "rag/knowledge_base/data"
 os.makedirs(DATA_DIR, exist_ok=True)

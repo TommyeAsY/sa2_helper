@@ -1,14 +1,15 @@
-import os
 import asyncio
-from typing import List, Optional
+import os
 
-from agno.knowledge.knowledge import Knowledge
-from agno.knowledge.embedder.sentence_transformer import SentenceTransformerEmbedder
-from agno.vectordb.lancedb import LanceDb, SearchType
 from agno.agent import Agent
+from agno.knowledge.embedder.sentence_transformer import \
+    SentenceTransformerEmbedder
+from agno.knowledge.knowledge import Knowledge
 from agno.models.openrouter import OpenRouter
+from agno.vectordb.lancedb import LanceDb, SearchType
 
-from rag.tools import get_sa2_categories, get_sa2_leaderboard
+# from rag.tools import get_sa2_categories, get_sa2_leaderboard
+
 from .parsing_knowledge import load_messages_for_knowledge
 
 
@@ -40,7 +41,7 @@ vector_db = LanceDb(
 # Utility functions
 # ============================
 
-def is_valid_text(text: Optional[str]) -> bool:
+def is_valid_text(text: str | None) -> bool:
     """
     Validate whether a text string is meaningful enough to be included in the knowledge base.
 
@@ -63,12 +64,12 @@ def is_valid_text(text: Optional[str]) -> bool:
     return True
 
 
-def build_context(docs: List) -> str:
+def build_context(docs: list) -> str:
     """
     Build a combined textual context from a list of Document objects.
 
     Args:
-        docs (List[Document]): Documents returned by the vector search.
+        docs (list[Document]): Documents returned by the vector search.
 
     Returns:
         str: A concatenated string of document contents sorted by priority.
@@ -87,14 +88,14 @@ def build_context(docs: List) -> str:
 # Knowledge loading
 # ============================
 
-async def load_full_knowledge(guild_ids: List[int]) -> Knowledge:
+async def load_full_knowledge(guild_ids: list[int]) -> Knowledge:
     """
     Load all knowledge sources into the vector database:
     - Parsed Discord messages
     - Internal documentation files
 
     Args:
-        guild_ids (List[int]): List of Discord guild IDs to load messages from.
+        guild_ids (list[int]): List of Discord guild IDs to load messages from.
 
     Returns:
         Knowledge: A fully populated Knowledge object ready for RAG queries.

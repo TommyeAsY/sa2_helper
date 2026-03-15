@@ -1,12 +1,12 @@
-from json import load
+import json
 
 
-with open("cfg/servers.json", encoding="utf-8") as f:
-    config = load(f)
+with open("config/servers.json", encoding="utf-8") as f:
+    config = json.load(f)
 
 def is_allowed(ctx, command_name: str) -> bool:
     """
-    Check if the command is allowed on the current server.
+    Checks if the command is allowed on the current server.
     
     Args:
         command_name (str): the input command.
