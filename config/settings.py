@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     discord_token: str
     openai_api_key: str
-    prompt_path: str = "config/prompt_2025-12-22.txt"
+    prompt_path: str = "config/prompt_2026-03-16.txt"
     prompt: str = ""
     servers_config_path: str = "config/servers.json"
     servers: dict = {}

@@ -1,34 +1,36 @@
-from agno.knowledge.knowledge import Knowledge
+from agno.agent import Agent
+from agno.models.openrouter import OpenRouter
 
 from config.errors_logs import errors_logger
-from rag.agent import build_context
-from services.agno_client import AgnoClient
 
 
 class RAGAgent:
-    def __init__(self, model_id: str, prompt: str, knowledge: Knowledge | None):
+    def __init__(self, model_id: str, prompt: str):
         self.model_id = model_id
-        self.prompt = prompt
-        self.knowledge = knowledge
-        self.client = AgnoClient(model_id)
 
-    async def answer(self, message: str) -> str:
-        if self.knowledge is None:
-            return "Knowledge base is still loading. Please try again shortly."
+        from rag.agent import knowledge
 
-        docs = self.knowledge.search(message)
-        context = build_context(docs)
-
-        final_prompt = (
-            f"{self.prompt}\n\n"
-            f"Relevant knowledge base documents (sorted by priority):\n"
-            f"{context}\n\n"
-            f"User question:\n{message}"
+        self.agent = Agent(
+            model=OpenRouter(id=model_id),
+            description=prompt,
+            knowledge=knowledge,
+            search_knowledge=True,
+            add_history_to_context=False,
+            debug_mode=True,
+            telemetry=False,
         )
 
-        try:
-            return await self.client.run_async(final_prompt, message)
+    def switch_model(self, new_model_id: str):
+        self.model_id = new_model_id
+        self.agent.model = OpenRouter(id=new_model_id)
 
+        if hasattr(self.agent, "_client"):
+            self.agent._client = None
+
+    async def answer(self, message: str) -> str:
+        try:
+            result = await self.agent.arun(message)
+            return result.content or "I could not generate a response."
         except Exception as e:
             text = str(e)
             errors_logger.error(f"RAGAgent error: {text}", exc_info=True)
@@ -40,8 +42,6 @@ class RAGAgent:
                 )
 
             if "rate limit" in text.lower() or "too many requests" in text.lower():
-                return (
-                    "⚠️ You may have reached dev's daily rate limit.\n"
-                )
+                return "⚠️ You may have reached dev's daily rate limit."
 
             return "⚠️ An internal error occurred while generating the answer."

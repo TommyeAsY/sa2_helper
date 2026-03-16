@@ -1,23 +1,15 @@
-import asyncio
 import os
-
-from agno.agent import Agent
-from agno.knowledge.embedder.sentence_transformer import \
-    SentenceTransformerEmbedder
-from agno.knowledge.knowledge import Knowledge
-from agno.models.openrouter import OpenRouter
+from agno.knowledge.embedder.sentence_transformer import SentenceTransformerEmbedder
 from agno.vectordb.lancedb import LanceDb, SearchType
-
-# from rag.tools import get_sa2_categories, get_sa2_leaderboard
-
-from .parsing_knowledge import load_messages_for_knowledge
-
+from agno.knowledge.knowledge import Knowledge
 
 # ============================
-# Constants and configuration
+# Configuration
 # ============================
 
-MIN_TEXT_LENGTH = 20
+CHUNK_SIZE = 400
+CHUNK_OVERLAP = 50
+MIN_WORDS = 3
 
 IGNORED_TEXTS = {
     "a message with attachments",
@@ -27,19 +19,20 @@ IGNORED_TEXTS = {
     "attachments",
 }
 
-embedder = SentenceTransformerEmbedder(id="all-MiniLM-L6-v2")
+embedder = SentenceTransformerEmbedder(id="intfloat/e5-base")
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "knowledge_base", "vector_db")
 
 vector_db = LanceDb(
     table_name="discord_messages",
-    uri="rag/knowledge_base/vector_db",
+    uri=DB_PATH,
     search_type=SearchType.vector,
-    embedder=embedder
+    embedder=embedder,
 )
 
+knowledge = Knowledge(vector_db=vector_db)
 
-# ============================
-# Utility functions
-# ============================
 
 def is_valid_text(text: str | None) -> bool:
     """
@@ -55,152 +48,39 @@ def is_valid_text(text: str | None) -> bool:
         return False
 
     t = text.strip().lower()
-    if len(t) < MIN_TEXT_LENGTH:
+    if not t:
         return False
-
     if t in IGNORED_TEXTS:
+        return False
+    if len(t.split()) < MIN_WORDS:
         return False
 
     return True
 
 
-def build_context(docs: list) -> str:
-    """
-    Build a combined textual context from a list of Document objects.
+def chunk_text(text: str, size=CHUNK_SIZE, overlap=CHUNK_OVERLAP) -> list[str]:
+    text = text.strip()
+    if not text:
+        return []
+    if text.lower() in IGNORED_TEXTS:
+        return []
 
-    Args:
-        docs (list[Document]): Documents returned by the vector search.
+    chunks: list[str] = []
+    start = 0
 
-    Returns:
-        str: A concatenated string of document contents sorted by priority.
-    """
-    valid_docs = [d for d in docs if is_valid_text(d.content)]
+    while start < len(text):
+        end = start + size
+        chunk = text[start:end].strip()
 
-    sorted_docs = sorted(
-        valid_docs,
-        key=lambda d: 0 if d.meta_data.get("priority") == "high" else 1
-    )
-
-    return "\n\n".join(d.content for d in sorted_docs)
-
-
-# ============================
-# Knowledge loading
-# ============================
-
-async def load_full_knowledge(guild_ids: list[int]) -> Knowledge:
-    """
-    Load all knowledge sources into the vector database:
-    - Parsed Discord messages
-    - Internal documentation files
-
-    Args:
-        guild_ids (list[int]): List of Discord guild IDs to load messages from.
-
-    Returns:
-        Knowledge: A fully populated Knowledge object ready for RAG queries.
-    """
-    kb = Knowledge(vector_db=vector_db)
-
-    # Load Discord messages
-    for gid in guild_ids:
-        for doc in load_messages_for_knowledge(gid):
-            text = (doc["text"] or "").strip()
-            if not is_valid_text(text):
+        if chunk:
+            lower = chunk.lower()
+            if lower in IGNORED_TEXTS:
+                start += size - overlap
                 continue
+            if len(chunk.split()) >= MIN_WORDS:
+                chunks.append(chunk)
 
-            await kb.add_content_async(
-                text_content=text,
-                metadata={**doc["metadata"], "priority": "low"},
-                skip_if_exists=True
-            )
-            await asyncio.sleep(0.01)
+        start += size - overlap
 
-    # Load internal documentation
-    extra_dir = "rag/knowledge_base/extra_sources"
-    if os.path.isdir(extra_dir):
-        for filename in os.listdir(extra_dir):
-            path = os.path.join(extra_dir, filename)
-            if not os.path.isfile(path):
-                continue
+    return chunks
 
-            with open(path, "r", encoding="utf-8") as f:
-                text = f.read().strip()
-
-            if not is_valid_text(text):
-                continue
-
-            await kb.add_content_async(
-                text_content=text,
-                metadata={"source": filename, "priority": "high"},
-                skip_if_exists=True
-            )
-
-    return kb
-
-
-# ============================
-# Manual RAG query
-# ============================
-
-async def ask_rag_async(message: str, model: str, prompt: str, kb: Knowledge) -> str:
-    """
-    Asynchronously execute a RAG query using a thread executor.
-
-    Args:
-        message (str): User query.
-        model (str): Model ID for OpenRouter.
-        prompt (str): System prompt.
-        kb (Knowledge): Knowledge base instance.
-
-    Returns:
-        str: Model-generated answer.
-    """
-    loop = asyncio.get_event_loop()
-    return await loop.run_in_executor(
-        None,
-        lambda: ask_rag(message, model, prompt, kb)
-    )
-
-
-def ask_rag(message: str, model: str, prompt: str, kb: Knowledge) -> str:
-    """
-    Perform a manual RAG (Retrieval-Augmented Generation) query:
-    - Search the knowledge base
-    - Filter and prioritize documents
-    - Build a contextual prompt
-    - Run the model without tool usage
-
-    Args:
-        message (str): User query.
-        model (str): Model ID for OpenRouter.
-        prompt (str): System prompt.
-        kb (Knowledge): Knowledge base instance.
-
-    Returns:
-        str: Final model response or fallback message.
-    """
-    docs = kb.search(message)
-    context = build_context(docs)
-
-    final_prompt = (
-        f"{prompt}\n\n"
-        f"Relevant knowledge base documents (sorted by priority):\n"
-### BEGIN KNOWLEDGE CONTEXT ###
-        f"{context}\n\n"
-### END KNOWLEDGE CONTEXT ###
-        f"User question:\n{message}"
-    )
-
-    agent = Agent(
-        model=OpenRouter(id=model),
-        description=final_prompt,
-        tools=[],                 # Tools disabled
-        knowledge=None,           # Disable built-in RAG
-        search_knowledge=False,   # Disable built-in search
-        debug_mode=True,
-        telemetry=False
-    )
-
-    result = agent.run(message)
-    return result.content or "I could not generate a response."

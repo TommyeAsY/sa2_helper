@@ -1,21 +1,27 @@
 import json
 import os
 import sqlite3
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 import discord
-from tqdm import tqdm
 
 
 DATA_DIR = "rag/knowledge_base/data"
 os.makedirs(DATA_DIR, exist_ok=True)
+
+executor = ThreadPoolExecutor(max_workers=1)
 
 
 def get_db_path(guild_id: int) -> str:
     return f"{DATA_DIR}/guild_{guild_id}.sqlite"
 
 
-def init_db(guild_id: int) -> None:
-    """Create SQLite DB for a specific guild if it doesn't exist."""
+# -----------------------------
+# DB INITIALIZATION
+# -----------------------------
+
+def init_db_sync(guild_id: int) -> None:
     path = get_db_path(guild_id)
     conn = sqlite3.connect(path)
     cursor = conn.cursor()
@@ -25,7 +31,7 @@ def init_db(guild_id: int) -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             guild_id TEXT NOT NULL,
             channel_id TEXT NOT NULL,
-            message_id TEXT NOT NULL UNIQUE,
+            message_id INTEGER NOT NULL UNIQUE,
             author_id TEXT NOT NULL,
             author_name TEXT NOT NULL,
             content TEXT,
@@ -39,8 +45,16 @@ def init_db(guild_id: int) -> None:
     conn.close()
 
 
-def save_message_to_db(message: discord.Message) -> None:
-    """Save a single Discord message into SQLite."""
+async def init_db(guild_id: int):
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(executor, init_db_sync, guild_id)
+
+
+# -----------------------------
+# SAVE MESSAGE
+# -----------------------------
+
+def save_message_sync(message: discord.Message):
     guild_id = message.guild.id
     db_path = get_db_path(guild_id)
 
@@ -57,7 +71,7 @@ def save_message_to_db(message: discord.Message) -> None:
     """, (
         str(guild_id),
         str(message.channel.id),
-        str(message.id),
+        message.id,
         str(message.author.id),
         message.author.name,
         message.content,
@@ -70,51 +84,107 @@ def save_message_to_db(message: discord.Message) -> None:
     conn.close()
 
 
-def get_last_message_id(guild_id, channel_id):
-    db_path = get_db_path(guild_id)
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
+async def save_message_to_db(message: discord.Message):
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(executor, save_message_sync, message)
 
-    cursor.execute("""
-        SELECT message_id FROM messages
-        WHERE guild_id = ? AND channel_id = ?
-        ORDER BY id DESC LIMIT 1
-    """, (str(guild_id), str(channel_id)))
 
-    row = cursor.fetchone()
-    conn.close()
+# -----------------------------
+# LAST MESSAGE ID
+# -----------------------------
 
-    return int(row[0]) if row else None
+async def get_last_message_id(guild_id, channel_id):
+    def _get_last():
+        db_path = get_db_path(guild_id)
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
 
+        cursor.execute("""
+            SELECT message_id FROM messages
+            WHERE guild_id = ? AND channel_id = ?
+            ORDER BY message_id DESC LIMIT 1
+        """, (str(guild_id), str(channel_id)))
+
+        row = cursor.fetchone()
+        conn.close()
+
+        return int(row[0]) if row else None
+
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(executor, _get_last)
+
+
+# -----------------------------
+# ASYNC PROGRESS BAR
+# -----------------------------
+
+async def async_progress(iterable, desc=""):
+    total = len(iterable)
+    for i, item in enumerate(iterable, start=1):
+        print(f"\r{desc}: {i}/{total}", end="")
+        yield item
+    print()
+
+
+# -----------------------------
+# PARSE GUILD (REVERSE HISTORY)
+# -----------------------------
 
 async def parse_guild(guild):
-    """Parse all text channels of a guild and save messages to SQLite."""
-    init_db(guild.id)
+    await init_db(guild.id)
     count = 0
 
-    for channel in tqdm(guild.text_channels, total=len(guild.text_channels)):
+    async for channel in async_progress(guild.text_channels, desc=f"Parsing {guild.name}"):
         try:
-            last_id = get_last_message_id(guild.id, channel.id)
+            last_id = await get_last_message_id(guild.id, channel.id)
 
-            if last_id:
-                after = discord.Object(id=last_id)
-                history = channel.history(limit=None, after=after)
-            else:
-                history = channel.history(limit=None)
+            if last_id is None:
+                history = channel.history(limit=None, oldest_first=True)
+                async for msg in history:
+                    await save_message_to_db(msg)
+                    count += 1
+                continue
 
-            async for msg in history:
-                save_message_to_db(msg)
-                count += 1
+            before = None
+            stop = False
+
+            while not stop:
+                batch_empty = True
+
+                history = channel.history(
+                    limit=100,
+                    before=before,
+                    oldest_first=False
+                )
+
+                async for msg in history:
+                    batch_empty = False
+
+                    if msg.id <= last_id:
+                        stop = True
+                        break
+
+                    await save_message_to_db(msg)
+                    count += 1
+
+                    before = discord.Object(id=msg.id)
+
+                if batch_empty:
+                    break
 
         except Exception as e:
             print(f"[ERROR] Channel {channel.name}: {e}")
 
+        await asyncio.sleep(0.1)
+
     return count
 
 
+# -----------------------------
+# LOAD MESSAGES FOR KNOWLEDGE
+# -----------------------------
 
 def load_messages_for_knowledge(guild_id: int) -> list:
-    """Load messages from SQLite and convert them into Agno Documents."""
     db_path = get_db_path(guild_id)
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -137,7 +207,5 @@ def load_messages_for_knowledge(guild_id: int) -> list:
                 "guild_id": guild_id
             }
         })
-    
+
     return docs
-
-

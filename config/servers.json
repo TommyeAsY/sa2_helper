@@ -15,6 +15,6 @@
         "description": "SA2 TAS Server",
         "allowed_commands": ["hello", "help", "model", "models", "switch", "refresh_models"],
         "allowed_channels": [1482432456811610112],
-        "joined": null
+        "joined": "2026-03-15"
     }
 }

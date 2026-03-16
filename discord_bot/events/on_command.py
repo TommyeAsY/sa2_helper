@@ -13,7 +13,7 @@ def register_command_handlers(bot):
         )
 
     @bot.event
-    async def on_command_error(ctx: commands.Context, error: commands.CommandError):
+    async def on_command_error(ctx: commands.Context, error: commands.CommandError) -> None:
         """
         Handles the exceptions from the users side.
         

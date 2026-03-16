@@ -23,7 +23,6 @@ def create_bot():
     )
 
     discord_bot.events.on_ready.register_on_ready_handlers(bot)
-    discord_bot.events.on_ready.register_on_guild_join_handler(bot)
 
     register_guild_handlers(bot)
     register_member_handlers(bot)

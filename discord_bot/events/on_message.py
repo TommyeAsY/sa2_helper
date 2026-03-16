@@ -59,20 +59,18 @@ def register_on_message_handler(bot):
             return
 
         if bot.user.mentioned_in(message):
-            if on_ready.rag_agent is None:
+
+            if not on_ready.bot_initialized:
                 reply = "Knowledge base is not ready yet. Please try again in a moment."
             else:
-                if on_ready.rag_agent.knowledge is None:
-                    reply = "Knowledge base is still loading. Please try again shortly."
-                else:
-                    try:
-                        reply = await on_ready.rag_agent.answer(message.content)
-                    except Exception as e:
-                        errors_logger.error(
-                            f"RAG error in guild {message.guild}: {e}",
-                            exc_info=True
-                        )
-                        reply = "⚠️ An internal error occurred while generating the answer."
+                try:
+                    reply = await on_ready.rag_agent.answer(message.content)
+                except Exception as e:
+                    errors_logger.error(
+                        f"RAG error in guild {message.guild}: {e}",
+                        exc_info=True
+                    )
+                    reply = "⚠️ An internal error occurred while generating the answer."
 
             await message.channel.send(reply)
             messages_logger.info(

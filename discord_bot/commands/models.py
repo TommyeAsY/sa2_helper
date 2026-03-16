@@ -3,7 +3,6 @@ from discord.ext import commands
 
 from config.messages_logs import messages_logger
 from discord_bot.events import on_ready
-from services.agno_client import AgnoClient
 
 
 def register_model_commands(bot):
@@ -36,30 +35,40 @@ def register_model_commands(bot):
             messages_logger.info(f"[{ctx.guild}] #{ctx.channel} [BOT]: {reply}")
             return
 
-        embed = discord.Embed(
-            title="Available models",
-            color=discord.Color.purple()
-        )
-
+        lines = []
         for m in models:
             clean_id = m.model_id.replace(":free", "")
-            embed.add_field(
-                name=f"{m.index}. {m.name}",
-                value=f"ID: `{clean_id}`\nContext: **{m.context_length}**",
-                inline=False
-            )
+            line = f"{m.index}. {m.name} — `{clean_id}` (context: {m.context_length})"
+            lines.append(line)
 
-        await ctx.send(embed=embed)
-        messages_logger.info(f"[{ctx.guild}] #{ctx.channel} [BOT]: [EMBED] models list sent")
+        header = "**Available models:**\n"
+        current_chunk = header
+        chunks = []
+
+        for line in lines:
+            if len(current_chunk) + len(line) + 1 > 1900:
+                chunks.append(current_chunk)
+                current_chunk = line + "\n"
+            else:
+                current_chunk += line + "\n"
+
+        if current_chunk.strip():
+            chunks.append(current_chunk)
+
+        for chunk in chunks:
+            await ctx.send(chunk)
+
+        messages_logger.info(
+            f"[{ctx.guild}] #{ctx.channel} [BOT]: models list sent in {len(chunks)} chunk(s)"
+        )
 
     @bot.command(name="switch", help=r"Switch model: !switch {index}")
     async def switch_cmd(ctx: commands.Context, index: int):
         if on_ready.model_registry.switch_model(index):
             current = on_ready.model_registry.get_current_model()
             if on_ready.rag_agent is not None:
-                on_ready.rag_agent.model_id = current.model_id
-                on_ready.rag_agent.client = AgnoClient(current.model_id)
-    
+                on_ready.rag_agent.switch_model(current.model_id)
+
             clean_id = current.model_id.replace(":free", "")
             reply = (
                 f"Model switched to **{current.name}**\n"
